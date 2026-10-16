@@ -387,6 +387,22 @@ describe('/audit', () => {
     expect(ok.sent[0].url).toBe('https://audit.test/mcp')
   })
 
+  it('returns 502 and 504 with the request id when audit-logs cannot be reached', async () => {
+    const down = await audit(
+      '/audit/events',
+      { headers: { ...bearer(KEY_A), 'X-Request-Id': 'r7' } },
+      () => {
+        throw new TypeError('network down')
+      },
+    )
+    expect(down.res.status).toBe(502)
+    expect(await down.res.json()).toMatchObject({ requestId: 'r7' })
+    const slow = await audit('/audit/events', { headers: bearer(KEY_A) }, () => {
+      throw new DOMException('timed out', 'TimeoutError')
+    })
+    expect(slow.res.status).toBe(504)
+  })
+
   it('returns the downstream status and body unchanged', async () => {
     const { res } = await audit('/audit/events', { headers: bearer(KEY_A) }, () =>
       Response.json({ error: 'bad' }, { status: 422 }),
