@@ -27,6 +27,7 @@ async function env(
       name,
       keyHash: await hashKey(key),
       ...AUDIT_KEYS[name],
+      ...SYSTEM_CODES[name],
     })),
   )
   return { CALLERS: JSON.stringify(callers), RATE_LIMITER: rateLimiter }
@@ -41,6 +42,12 @@ async function call(path: string, init: RequestInit = {}, e?: Awaited<ReturnType
 const AUDIT_KEYS: Record<string, { auditKey: string; auditScope: string }> = {
   crms: { auditKey: 'audit-key-crms', auditScope: 'administrator' },
   pos: { auditKey: 'audit-key-pos', auditScope: 'writer' },
+}
+
+/** Client System codes held in the Caller map; ims has none. */
+const SYSTEM_CODES: Record<string, { systemCode: string }> = {
+  crms: { systemCode: 'CRMS' },
+  pos: { systemCode: 'POS' },
 }
 
 const bearer = (key: string) => ({ Authorization: `Bearer ${key}` })
@@ -284,6 +291,82 @@ describe('/notifications', () => {
     )
     expect(res.status).toBe(504)
     expect(await res.json()).toMatchObject({ requestId: 'r8' })
+  })
+})
+
+describe('/files', () => {
+  const FILES_ENV = { FILE_STORAGE_URL: 'https://files.test', FILE_STORAGE_TOKEN: 'gateway-secret' }
+
+  /** Calls the gateway with a recording stand-in for file-storage. */
+  async function files(
+    path: string,
+    init: RequestInit = {},
+    callers?: Awaited<ReturnType<typeof env>>,
+  ) {
+    const sent: Request[] = []
+    const app = createApp({
+      fetch: async (input, init) => {
+        sent.push(new Request(input, { ...init, duplex: 'half' } as object))
+        return new Response('ok')
+      },
+    })
+    const res = await app.fetch(new Request(`https://gw.test${path}`, init), {
+      ...(callers ?? (await env())),
+      ...FILES_ENV,
+    })
+    return { res, sent }
+  }
+
+  it('forwards with the prefix stripped, the mapped Client System code and the gateway secret', async () => {
+    const { res, sent } = await files('/files/abc/confirm?x=1', {
+      method: 'POST',
+      headers: { ...bearer(KEY_A), 'X-Actor-Id': 'user-1' },
+    })
+    expect(res.status).toBe(200)
+    expect(sent[0].url).toBe('https://files.test/abc/confirm?x=1')
+    expect(sent[0].method).toBe('POST')
+    expect(sent[0].headers.get('X-System-Code')).toBe('CRMS')
+    expect(sent[0].headers.get('Authorization')).toBe('Bearer gateway-secret')
+    expect(sent[0].headers.get('X-Actor-Id')).toBe('user-1')
+  })
+
+  it('ignores an X-System-Code the Caller sends', async () => {
+    const { sent } = await files('/files/abc', {
+      headers: { ...bearer(KEY_B), 'X-System-Code': 'CRMS' },
+    })
+    expect(sent[0].headers.get('X-System-Code')).toBe('POS')
+    expect(sent[0].headers.get('Authorization')).toBe('Bearer gateway-secret')
+  })
+
+  it('refuses a Caller with no Client System code without reaching file-storage', async () => {
+    const { res, sent } = await files('/files/abc', { headers: bearer('key-for-ims') }, await env({ ims: 'key-for-ims' }))
+    expect(res.status).toBe(403)
+    expect(sent).toHaveLength(0)
+  })
+
+  it('serves docs and openapi.json without a key and without credentials', async () => {
+    for (const path of ['/files/docs', '/files/openapi.json']) {
+      const { res, sent } = await files(path)
+      expect(res.status).toBe(200)
+      expect(sent[0].url).toBe(`https://files.test${path.replace('/files', '')}`)
+      expect(sent[0].headers.has('Authorization')).toBe(false)
+      expect(sent[0].headers.has('X-System-Code')).toBe(false)
+    }
+  })
+
+  it('does not expose the cleanup cron route', async () => {
+    for (const headers of [{}, bearer(KEY_A)]) {
+      const { res, sent } = await files('/files/cron/cleanup', { headers })
+      expect(res.status === 401 || res.status === 404).toBe(true)
+      expect(sent).toHaveLength(0)
+    }
+  })
+
+  it('requires a Caller key for /mcp', async () => {
+    const refused = await files('/files/mcp', { method: 'POST' })
+    expect(refused.res.status).toBe(401)
+    const ok = await files('/files/mcp', { method: 'POST', headers: bearer(KEY_A) })
+    expect(ok.sent[0].url).toBe('https://files.test/mcp')
   })
 })
 

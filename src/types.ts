@@ -11,6 +11,10 @@ export interface Env {
   NOTIFICATIONS?: Fetcher
   /** Base address of the audit-logs service; a Worker variable. */
   AUDIT_LOGS_URL: string
+  /** Base address of the file-storage service; a Worker variable. */
+  FILE_STORAGE_URL: string
+  /** Gateway secret file-storage requires on every API request (its GATEWAY_SECRET); a Worker secret. */
+  FILE_STORAGE_TOKEN: string
   /** Bearer token the notifications service expects from the gateway; a Worker secret. */
   NOTIFICATIONS_TOKEN: string
   /** Key that signs and verifies Live tickets; a Worker secret. */
