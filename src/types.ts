@@ -5,6 +5,10 @@ export interface Env {
   CALLERS: string
   /** Cloudflare rate limiting binding; keyed by Caller name. */
   RATE_LIMITER: RateLimit
+  /** Base address of the notifications service; a Worker variable. */
+  NOTIFICATIONS_URL: string
+  /** Bearer token the notifications service expects from the gateway; a Worker secret. */
+  NOTIFICATIONS_TOKEN: string
 }
 
 export type GatewayEnv = {

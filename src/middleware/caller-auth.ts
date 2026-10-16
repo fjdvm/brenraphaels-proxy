@@ -2,7 +2,7 @@ import { createMiddleware } from 'hono/factory'
 import { identifyCaller, parseCallers } from '../auth/callers.js'
 import type { GatewayEnv } from '../types.js'
 
-const OPEN_PATHS = new Set(['/health'])
+const OPEN_PATHS = new Set(['/health', '/notifications/docs', '/notifications/openapi.json'])
 
 /** Requires a valid Caller key as a bearer credential, except on open paths. */
 export const callerAuth = createMiddleware<GatewayEnv>(async (c, next) => {
