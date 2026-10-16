@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { createApp } from './app.js'
-import { hashKey } from './callers.js'
+import { createApp } from '../src/app.js'
+import { hashKey } from '../src/auth/callers.js'
 
 const KEY_A = 'key-for-crms'
 const KEY_B = 'key-for-pos'
