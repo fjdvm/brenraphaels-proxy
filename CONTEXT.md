@@ -7,3 +7,7 @@ The single endpoint through which the company's applications reach the notificat
 **Caller**:
 Anything that presents a gateway credential to use the gateway: an application (CRMS, POS, IMS, HRMS, ECOM, the Portal) or one of the services behind it (Authentication, file storage, notifications). A service can be both a Caller and a destination. The gateway checks only which Caller is knocking, never which person is behind the request. It maps each Caller to the identity the downstream service expects (a Source, a Client System, or an App).
 _Avoid_: App (notifications term), Client System (file-storage term), Source (audit-logs term), System (authentication portal term), Consumer
+
+**Live ticket**:
+A short-lived pass a Caller's backend asks the gateway for on behalf of one user, so that user's browser can open a live connection. It names the user (and, for a Ticket conversation, the Ticket and role) and expires within about a minute. The gateway vouches for the user only because the Caller did.
+_Avoid_: Session, Token, Socket key

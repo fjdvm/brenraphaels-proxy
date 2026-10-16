@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { createApp } from '../src/app.js'
 import { hashKey } from '../src/auth/callers.js'
+import { issueLiveTicket, verifyLiveTicket } from '../src/auth/live-tickets.js'
 
 const KEY_A = 'key-for-crms'
 const KEY_B = 'key-for-pos'
@@ -363,7 +364,9 @@ describe('/audit', () => {
       },
     })
     const res = await app.fetch(
-      new Request('https://gw.test/audit/events', { headers: bearer('key-for-ims') }),
+      new Request('https://gw.test/audit/events', {
+        headers: bearer('key-for-ims'),
+      }),
       { ...e, ...AUDIT_ENV },
     )
     expect(res.status).toBe(403)
@@ -383,7 +386,10 @@ describe('/audit', () => {
     const { res, sent } = await audit('/audit/mcp', { method: 'POST' })
     expect(res.status).toBe(401)
     expect(sent).toHaveLength(0)
-    const ok = await audit('/audit/mcp', { method: 'POST', headers: bearer(KEY_A) })
+    const ok = await audit('/audit/mcp', {
+      method: 'POST',
+      headers: bearer(KEY_A),
+    })
     expect(ok.sent[0].url).toBe('https://audit.test/mcp')
   })
 
@@ -409,5 +415,167 @@ describe('/audit', () => {
     )
     expect(res.status).toBe(422)
     expect(await res.json()).toEqual({ error: 'bad' })
+  })
+})
+
+describe('Live tickets', () => {
+  const LIVE_ENV = {
+    NOTIFICATIONS_URL: 'https://notify.test',
+    NOTIFICATIONS_TOKEN: 'gw-notify-token',
+    LIVE_TICKET_SECRET: 'ticket-secret',
+  }
+
+  async function gateway(
+    path: string,
+    init: RequestInit = {},
+    overrides: Record<string, unknown> = {},
+  ) {
+    const sent: Request[] = []
+    const app = createApp({
+      fetch: async (input, init) => {
+        const req = new Request(input, { ...init, duplex: 'half' } as object)
+        sent.push(req)
+        return new Response('live')
+      },
+    })
+    const res = await app.fetch(new Request(`https://gw.test${path}`, init), {
+      ...(await env()),
+      ...LIVE_ENV,
+      ...overrides,
+    })
+    return { res, sent }
+  }
+
+  async function issue(body: object, headers: HeadersInit = bearer(KEY_A)) {
+    const { res } = await gateway('/live-tickets', {
+      method: 'POST',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    })
+    return res
+  }
+
+  const ticketFor = async (body: object) =>
+    ((await (await issue(body)).json()) as { ticket: string }).ticket
+
+  it('requires a valid Caller key to issue a ticket', async () => {
+    expect((await issue({ userId: 'u1' }, {})).status).toBe(401)
+    expect((await issue({ userId: 'u1' }, bearer('nope'))).status).toBe(401)
+    expect((await issue({ userId: 'u1' })).status).toBe(200)
+  })
+
+  it('rejects a request without a user, or a conversation ticket without Ticket and role', async () => {
+    expect((await issue({})).status).toBe(400)
+    expect((await issue({ userId: 'u1', ticketId: 't1' })).status).toBe(400)
+    expect((await issue({ userId: 'u1', ticketId: 't1', role: 'Admin' })).status).toBe(400)
+  })
+
+  it('opens /notifications/live with a valid ticket and forwards the verified user', async () => {
+    const ticket = await ticketFor({ userId: 'u1' })
+    const { res, sent } = await gateway(`/notifications/live?ticket=${ticket}`)
+    expect(res.status).toBe(200)
+    const url = new URL(sent[0].url)
+    expect(url.origin + url.pathname).toBe('https://notify.test/live')
+    expect(url.searchParams.get('userId')).toBe('u1')
+    expect(url.searchParams.get('app')).toBe('crms')
+    expect(url.searchParams.has('ticket')).toBe(false)
+  })
+
+  it('opens the conversation route and forwards the verified user and role', async () => {
+    const ticket = await ticketFor({
+      userId: 'u1',
+      ticketId: 't1',
+      role: 'Staff',
+    })
+    const { res, sent } = await gateway(
+      `/notifications/conversations/t1/live?ticket=${ticket}&role=Customer`,
+    )
+    expect(res.status).toBe(200)
+    const url = new URL(sent[0].url)
+    expect(url.pathname).toBe('/conversations/t1/live')
+    expect(url.searchParams.get('userId')).toBe('u1')
+    expect(url.searchParams.get('role')).toBe('Staff')
+  })
+
+  it('does not let a browser declare a different user', async () => {
+    const ticket = await ticketFor({ userId: 'u1' })
+    const { res, sent } = await gateway(`/notifications/live?ticket=${ticket}&userId=victim`)
+    expect(res.status).toBe(401)
+    expect(sent).toHaveLength(0)
+  })
+
+  it('rejects a missing, tampered, forged or expired ticket before forwarding', async () => {
+    const ticket = await ticketFor({ userId: 'u1' })
+    const [payload, sig] = ticket.split('.')
+    const other = (await ticketFor({ userId: 'u2' })).split('.')[0]
+    const forged = await issueLiveTicket('other-secret', {
+      userId: 'u1',
+      app: 'crms',
+    })
+    const expired = await issueLiveTicket(
+      'ticket-secret',
+      { userId: 'u1', app: 'crms' },
+      Date.now() - 120_000,
+    )
+    for (const bad of [
+      '',
+      'garbage',
+      `${other}.${sig}`,
+      `${payload}.${sig.slice(1)}x`,
+      forged.ticket,
+      expired.ticket,
+    ]) {
+      const { res, sent } = await gateway(`/notifications/live?ticket=${bad}`)
+      expect(res.status, bad).toBe(401)
+      expect(sent).toHaveLength(0)
+    }
+    expect((await gateway('/notifications/live')).res.status).toBe(401)
+  })
+
+  it('expires within about a minute', async () => {
+    const issued = await issueLiveTicket('ticket-secret', {
+      userId: 'u1',
+      app: 'crms',
+    })
+    expect(issued.expiresIn).toBeLessThanOrEqual(60)
+    expect(
+      await verifyLiveTicket('ticket-secret', issued.ticket, Date.now() + 61_000),
+    ).toBeUndefined()
+  })
+
+  it('does not let a ticket join another Ticket, role, or the inbox route', async () => {
+    const convo = await ticketFor({
+      userId: 'u1',
+      ticketId: 't1',
+      role: 'Staff',
+    })
+    const inbox = await ticketFor({ userId: 'u1' })
+    for (const path of [
+      `/notifications/conversations/t2/live?ticket=${convo}`,
+      `/notifications/live?ticket=${convo}`,
+      `/notifications/conversations/t1/live?ticket=${inbox}`,
+    ]) {
+      const { res, sent } = await gateway(path)
+      expect(res.status, path).toBe(401)
+      expect(sent).toHaveLength(0)
+    }
+  })
+
+  it('still requires a Caller key for other methods on the live paths', async () => {
+    const { res, sent } = await gateway('/notifications/live', {
+      method: 'POST',
+    })
+    expect(res.status).toBe(401)
+    expect(sent).toHaveLength(0)
+  })
+
+  it('fails closed when no ticket secret is configured', async () => {
+    const ticket = await ticketFor({ userId: 'u1' })
+    const { res } = await gateway(
+      `/notifications/live?ticket=${ticket}`,
+      {},
+      { LIVE_TICKET_SECRET: '' },
+    )
+    expect(res.status).toBe(401)
   })
 })

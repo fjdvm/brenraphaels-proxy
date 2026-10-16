@@ -11,6 +11,8 @@ export interface Env {
   AUDIT_LOGS_URL: string
   /** Bearer token the notifications service expects from the gateway; a Worker secret. */
   NOTIFICATIONS_TOKEN: string
+  /** Key that signs and verifies Live tickets; a Worker secret. */
+  LIVE_TICKET_SECRET: string
 }
 
 export type GatewayEnv = {

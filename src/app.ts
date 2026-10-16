@@ -3,6 +3,7 @@ import { callerAuth } from './middleware/caller-auth.js'
 import { rateLimit } from './middleware/rate-limit.js'
 import { requestId } from './middleware/request-id.js'
 import { notifications } from './routes/notifications.js'
+import { live } from './routes/live.js'
 import { audit } from './routes/audit.js'
 import { health } from './routes/health.js'
 import type { GatewayEnv } from './types.js'
@@ -26,6 +27,7 @@ export function createApp(deps: AppDeps) {
   app.use(rateLimit)
 
   app.route('/', health)
+  app.route('/', live)
   app.route('/', notifications)
   app.route('/', audit)
 

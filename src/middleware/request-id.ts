@@ -9,5 +9,7 @@ export const requestId = createMiddleware<GatewayEnv>(async (c, next) => {
   const id = supplied && SAFE_REQUEST_ID.test(supplied) ? supplied : crypto.randomUUID()
   c.set('requestId', id)
   await next()
+  // A WebSocket upgrade response carries a socket and immutable headers; leave it as is.
+  if (c.res.status === 101) return
   c.res.headers.set('X-Request-Id', id)
 })

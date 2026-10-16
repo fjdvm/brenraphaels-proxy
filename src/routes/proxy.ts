@@ -12,6 +12,8 @@ interface Target {
   baseUrl: string
   /** Headers the gateway sets itself, replacing anything the Caller sent. */
   headers: Record<string, string>
+  /** Replaces the Caller's query string when set. */
+  query?: URLSearchParams
 }
 
 /** Forwards the request to a service with the prefix stripped and returns its response unchanged. */
@@ -32,7 +34,10 @@ export async function forward(c: Context<GatewayEnv>, target: Target): Promise<R
     DOWNSTREAM_TIMEOUT_MS,
   )
   try {
-    const url = new URL(path + incoming.search, target.baseUrl)
+    const url = new URL(
+      path + (target.query ? `?${target.query}` : incoming.search),
+      target.baseUrl,
+    )
     const res = await c.get('fetch')(url, {
       method: c.req.method,
       headers,
@@ -40,6 +45,8 @@ export async function forward(c: Context<GatewayEnv>, target: Target): Promise<R
       redirect: 'manual',
       signal: controller.signal,
     })
+    // A WebSocket upgrade must be handed back as is; copying would drop the socket.
+    if (res.status === 101) return res
     // Copy so the response headers are mutable (the request id is added on the way out).
     return new Response(res.body, res)
   } catch (err) {
