@@ -24,3 +24,7 @@ wrangler secret put CALLERS
 ```
 npm run deploy
 ```
+
+## CI/CD
+
+`.github/workflows/ci.yml` typechecks and tests every push and pull request, and deploys on pushes to `main`. It needs the repository secrets `CLOUDFLARE_API_TOKEN` (Workers edit permission) and `CLOUDFLARE_ACCOUNT_ID`. The `CALLERS` Worker secret lives in Cloudflare, not in GitHub.
