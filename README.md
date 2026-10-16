@@ -19,6 +19,10 @@ npm run dev
 wrangler secret put CALLERS
 ```
 
+Other Worker secrets: `FILE_STORAGE_TOKEN` (file-storage's `GATEWAY_SECRET`), `NOTIFICATIONS_TOKEN` (notifications' `API_TOKEN`), `NOTIFICATIONS_GATEWAY_SECRET` (notifications' `GATEWAY_SECRET`, sent as `X-Gateway-Secret` on the live routes) and `LIVE_TICKET_SECRET`. Set each with `printf '%s' "$VALUE" | wrangler secret put NAME`; the matching value must be set on the service too.
+
+Production: https://api-gateway.jude-nitram08.workers.dev
+
 ## Deploy
 
 ```
