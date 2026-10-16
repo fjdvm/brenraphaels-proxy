@@ -317,13 +317,13 @@ describe('/files', () => {
     return { res, sent }
   }
 
-  it('forwards with the prefix stripped, the mapped Client System code and the gateway secret', async () => {
+  it('forwards the path unchanged, with the mapped Client System code and the gateway secret', async () => {
     const { res, sent } = await files('/files/abc/confirm?x=1', {
       method: 'POST',
       headers: { ...bearer(KEY_A), 'X-Actor-Id': 'user-1' },
     })
     expect(res.status).toBe(200)
-    expect(sent[0].url).toBe('https://files.test/abc/confirm?x=1')
+    expect(sent[0].url).toBe('https://files.test/files/abc/confirm?x=1')
     expect(sent[0].method).toBe('POST')
     expect(sent[0].headers.get('X-System-Code')).toBe('CRMS')
     expect(sent[0].headers.get('Authorization')).toBe('Bearer gateway-secret')
@@ -352,6 +352,11 @@ describe('/files', () => {
       expect(sent[0].headers.has('Authorization')).toBe(false)
       expect(sent[0].headers.has('X-System-Code')).toBe(false)
     }
+  })
+
+  it('reaches file-storage’s own /files routes', async () => {
+    const created = await files('/files', { method: 'POST', headers: bearer(KEY_A) })
+    expect(created.sent[0].url).toBe('https://files.test/files')
   })
 
   it('does not expose the cleanup cron route', async () => {
