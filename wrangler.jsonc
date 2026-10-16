@@ -16,5 +16,5 @@
     // One limit per Caller across all routes; keep `period` in sync with RATE_LIMIT_PERIOD_SECONDS.
     { "name": "RATE_LIMITER", "namespace_id": "1001", "simple": { "limit": 600, "period": 60 } }
   ]
-  // Secrets (set with `wrangler secret put`, never committed): CALLERS, FILE_STORAGE_TOKEN, NOTIFICATIONS_TOKEN, LIVE_TICKET_SECRET
+  // Secrets (set with `wrangler secret put`, never committed): CALLERS, FILE_STORAGE_TOKEN, NOTIFICATIONS_TOKEN, NOTIFICATIONS_GATEWAY_SECRET, LIVE_TICKET_SECRET
 }

@@ -17,6 +17,8 @@ export interface Env {
   FILE_STORAGE_TOKEN: string
   /** Bearer token the notifications service expects from the gateway; a Worker secret. */
   NOTIFICATIONS_TOKEN: string
+  /** Secret the notifications live routes require in X-Gateway-Secret (its GATEWAY_SECRET); a Worker secret. */
+  NOTIFICATIONS_GATEWAY_SECRET: string
   /** Key that signs and verifies Live tickets; a Worker secret. */
   LIVE_TICKET_SECRET: string
 }

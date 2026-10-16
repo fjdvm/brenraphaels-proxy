@@ -510,6 +510,7 @@ describe('Live tickets', () => {
   const LIVE_ENV = {
     NOTIFICATIONS_URL: 'https://notify.test',
     NOTIFICATIONS_TOKEN: 'gw-notify-token',
+    NOTIFICATIONS_GATEWAY_SECRET: 'gw-notify-gateway-secret',
     LIVE_TICKET_SECRET: 'ticket-secret',
   }
 
@@ -567,6 +568,7 @@ describe('Live tickets', () => {
     expect(url.searchParams.get('userId')).toBe('u1')
     expect(url.searchParams.get('app')).toBe('crms')
     expect(url.searchParams.has('ticket')).toBe(false)
+    expect(sent[0].headers.get('x-gateway-secret')).toBe('gw-notify-gateway-secret')
   })
 
   it('opens the conversation route and forwards the verified user and role', async () => {

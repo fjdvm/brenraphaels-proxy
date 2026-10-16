@@ -44,7 +44,8 @@ async function forwardLive(c: Parameters<typeof forward>[0], ticketId: string | 
     prefix: '/notifications',
     baseUrl: c.env.NOTIFICATIONS_URL,
     query,
-    headers: { Authorization: `Bearer ${c.env.NOTIFICATIONS_TOKEN}` },
+    // The live routes take the gateway secret in place of the bearer token.
+    headers: { 'X-Gateway-Secret': c.env.NOTIFICATIONS_GATEWAY_SECRET },
   })
 }
 
