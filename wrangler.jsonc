@@ -4,9 +4,9 @@
   "compatibility_date": "2026-10-01",
   "vars": {
     // Address of the notifications service.
-    "NOTIFICATIONS_URL": "https://REPLACE-ME.workers.dev",
+    "NOTIFICATIONS_URL": "https://br-notifications.jude-nitram08.workers.dev",
     // Address of the audit-logs service.
-    "AUDIT_LOGS_URL": "https://REPLACE-ME.vercel.app"
+    "AUDIT_LOGS_URL": "https://brenraphaels-audit-logs.vercel.app"
   },
   "ratelimits": [
     // One limit per Caller across all routes; keep `period` in sync with RATE_LIMIT_PERIOD_SECONDS.
