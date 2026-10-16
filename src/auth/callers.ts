@@ -1,6 +1,10 @@
 export interface Caller {
   name: string
   keyHash: string
+  /** The Caller's own audit-logs API key; its scope decides which audit-logs routes it may use. */
+  auditKey?: string
+  /** Scope the audit key carries (informational; audit-logs enforces it). */
+  auditScope?: string
 }
 
 const encoder = new TextEncoder()

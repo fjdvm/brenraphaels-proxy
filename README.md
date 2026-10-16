@@ -13,7 +13,7 @@ npm run dev
 
 ## Configuration
 
-`CALLERS` (Worker secret, never committed): JSON array of `{ "name": "...", "keyHash": "<sha256 hex of the Caller's key>" }`. Add a Caller by adding an entry; revoke by removing it and redeploying.
+`CALLERS` (Worker secret, never committed): JSON array of `{ "name": "...", "keyHash": "<sha256 hex of the Caller's key>" }`. Optional per Caller: `"auditKey"` (its audit-logs API key, which carries the scope) and `"auditScope"`; a Caller without `auditKey` gets 403 on `/audit/*`. Add a Caller by adding an entry; revoke by removing it and redeploying.
 
 ```
 wrangler secret put CALLERS

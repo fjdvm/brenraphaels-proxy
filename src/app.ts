@@ -3,6 +3,7 @@ import { callerAuth } from './middleware/caller-auth.js'
 import { rateLimit } from './middleware/rate-limit.js'
 import { requestId } from './middleware/request-id.js'
 import { notifications } from './routes/notifications.js'
+import { audit } from './routes/audit.js'
 import { health } from './routes/health.js'
 import type { GatewayEnv } from './types.js'
 
@@ -26,6 +27,7 @@ export function createApp(deps: AppDeps) {
 
   app.route('/', health)
   app.route('/', notifications)
+  app.route('/', audit)
 
   app.notFound((c) => c.json({ error: 'not found' }, 404))
   app.onError((_err, c) => c.json({ error: 'internal error' }, 500))

@@ -25,6 +25,7 @@ async function env(
     Object.entries(keys).map(async ([name, key]) => ({
       name,
       keyHash: await hashKey(key),
+      ...AUDIT_KEYS[name],
     })),
   )
   return { CALLERS: JSON.stringify(callers), RATE_LIMITER: rateLimiter }
@@ -33,6 +34,12 @@ async function env(
 async function call(path: string, init: RequestInit = {}, e?: Awaited<ReturnType<typeof env>>) {
   const app = createApp({ fetch: async () => new Response('downstream') })
   return app.fetch(new Request(`https://gw.test${path}`, init), e ?? (await env()))
+}
+
+/** Audit-logs API keys held in the Caller map; crms holds the Administrator scope, pos does not. */
+const AUDIT_KEYS: Record<string, { auditKey: string; auditScope: string }> = {
+  crms: { auditKey: 'audit-key-crms', auditScope: 'administrator' },
+  pos: { auditKey: 'audit-key-pos', auditScope: 'writer' },
 }
 
 const bearer = (key: string) => ({ Authorization: `Bearer ${key}` })
@@ -276,5 +283,115 @@ describe('/notifications', () => {
     )
     expect(res.status).toBe(504)
     expect(await res.json()).toMatchObject({ requestId: 'r8' })
+  })
+})
+
+describe('/audit', () => {
+  const AUDIT_ENV = { AUDIT_LOGS_URL: 'https://audit.test' }
+
+  /** Calls the gateway with a recording stand-in for audit-logs. */
+  async function audit(
+    path: string,
+    init: RequestInit = {},
+    downstream: (req: Request) => Response | Promise<Response> = () => new Response('ok'),
+  ) {
+    const sent: Request[] = []
+    const app = createApp({
+      fetch: async (input, init) => {
+        const req = new Request(input, { ...init, duplex: 'half' } as object)
+        sent.push(req)
+        return downstream(req)
+      },
+    })
+    const res = await app.fetch(new Request(`https://gw.test${path}`, init), {
+      ...(await env()),
+      ...AUDIT_ENV,
+    })
+    return { res, sent }
+  }
+
+  it('records a single Audit Event with the prefix stripped and the Caller’s own audit key', async () => {
+    const { res, sent } = await audit('/audit/events', {
+      method: 'POST',
+      headers: { ...bearer(KEY_A), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'login' }),
+    })
+    expect(res.status).toBe(200)
+    expect(sent[0].url).toBe('https://audit.test/events')
+    expect(sent[0].headers.get('Authorization')).toBe('Bearer audit-key-crms')
+    expect(await sent[0].json()).toEqual({ action: 'login' })
+  })
+
+  it('records a batch of Audit Events', async () => {
+    const { sent } = await audit('/audit/events/batch', {
+      method: 'POST',
+      headers: { ...bearer(KEY_B), 'Content-Type': 'application/json' },
+      body: '[{"action":"a"},{"action":"b"}]',
+    })
+    expect(sent[0].url).toBe('https://audit.test/events/batch')
+    expect(sent[0].headers.get('Authorization')).toBe('Bearer audit-key-pos')
+    expect(await sent[0].json()).toHaveLength(2)
+  })
+
+  it('drops the Caller’s own Authorization and X-System-Code', async () => {
+    const { sent } = await audit('/audit/events', {
+      headers: { ...bearer(KEY_B), 'X-System-Code': 'forged' },
+    })
+    expect(sent[0].headers.get('Authorization')).toBe('Bearer audit-key-pos')
+    expect(sent[0].headers.has('X-System-Code')).toBe(false)
+  })
+
+  it('leaves Administrator-only routes to the scope of each Caller’s key', async () => {
+    const adminOnly = (req: Request) =>
+      req.headers.get('Authorization') === 'Bearer audit-key-crms'
+        ? Response.json({ ok: true })
+        : Response.json({ error: 'forbidden' }, { status: 403 })
+    const allowed = await audit('/audit/admin/purge', { headers: bearer(KEY_A) }, adminOnly)
+    expect(allowed.res.status).toBe(200)
+    const refused = await audit('/audit/admin/purge', { headers: bearer(KEY_B) }, adminOnly)
+    expect(refused.res.status).toBe(403)
+    expect(await refused.res.json()).toEqual({ error: 'forbidden' })
+  })
+
+  it('refuses a Caller with no audit key without reaching audit-logs', async () => {
+    const e = await env({ ims: 'key-for-ims' })
+    const sent: Request[] = []
+    const app = createApp({
+      fetch: async (input, init) => {
+        sent.push(new Request(input, init))
+        return new Response('ok')
+      },
+    })
+    const res = await app.fetch(
+      new Request('https://gw.test/audit/events', { headers: bearer('key-for-ims') }),
+      { ...e, ...AUDIT_ENV },
+    )
+    expect(res.status).toBe(403)
+    expect(sent).toHaveLength(0)
+  })
+
+  it('serves docs and openapi.json without a key', async () => {
+    for (const path of ['/audit/docs', '/audit/openapi.json']) {
+      const { res, sent } = await audit(path)
+      expect(res.status).toBe(200)
+      expect(sent[0].url).toBe(`https://audit.test${path.replace('/audit', '')}`)
+      expect(sent[0].headers.has('Authorization')).toBe(false)
+    }
+  })
+
+  it('requires a Caller key for /mcp', async () => {
+    const { res, sent } = await audit('/audit/mcp', { method: 'POST' })
+    expect(res.status).toBe(401)
+    expect(sent).toHaveLength(0)
+    const ok = await audit('/audit/mcp', { method: 'POST', headers: bearer(KEY_A) })
+    expect(ok.sent[0].url).toBe('https://audit.test/mcp')
+  })
+
+  it('returns the downstream status and body unchanged', async () => {
+    const { res } = await audit('/audit/events', { headers: bearer(KEY_A) }, () =>
+      Response.json({ error: 'bad' }, { status: 422 }),
+    )
+    expect(res.status).toBe(422)
+    expect(await res.json()).toEqual({ error: 'bad' })
   })
 })
