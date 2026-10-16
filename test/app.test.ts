@@ -670,9 +670,9 @@ describe('Live tickets', () => {
   })
 })
 
-describe('API explorer', () => {
-  it('serves the explorer page at / and /ui without a key', async () => {
-    for (const path of ['/', '/ui']) {
+describe('Docs site', () => {
+  it('serves the docs site at /, /ui and /docs without a key', async () => {
+    for (const path of ['/', '/ui', '/docs']) {
       const res = await call(path)
       expect(res.status).toBe(200)
       expect(res.headers.get('content-type')).toContain('text/html')

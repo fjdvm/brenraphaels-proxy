@@ -7,7 +7,7 @@ import { live } from './routes/live.js'
 import { files } from './routes/files.js'
 import { audit } from './routes/audit.js'
 import { health } from './routes/health.js'
-import { explorer } from './routes/explorer.js'
+import { docs } from './routes/docs.js'
 import { createMcp } from './routes/mcp.js'
 import type { GatewayEnv } from './types.js'
 
@@ -30,7 +30,7 @@ export function createApp(deps: AppDeps) {
   app.use(rateLimit)
 
   app.route('/', health)
-  app.route('/', explorer)
+  app.route('/', docs)
   app.route('/', live)
   app.route('/', notifications)
   app.route('/', files)

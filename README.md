@@ -23,9 +23,16 @@ Other Worker secrets: `FILE_STORAGE_TOKEN` (file-storage's `GATEWAY_SECRET`), `N
 
 Production: https://api-gateway.jude-nitram08.workers.dev
 
-## Explorer
+## Docs and MCP
 
-`GET /` (also `/ui`) serves an interactive API explorer: pick an endpoint, fill in the form, send it and read the response. It lists the notifications and file-storage endpoints from their live OpenAPI documents, plus the audit-logs and gateway endpoints, and has a Live tester for WebSocket tickets. The page is open and holds no data; paste a Caller key into it and the key stays in the browser tab (session storage) and is sent only to this gateway.
+`GET /` (also `/ui`, `/docs`) is the gateway's documentation site: guides, an API reference built from the notifications and file-storage OpenAPI documents, and a Try it panel on every endpoint. It is open and holds no data; paste a Caller key into it and the key stays in the browser tab (session storage) and is sent only to this gateway.
+
+`POST /mcp` is an MCP server (Streamable HTTP, stateless) for AI agents, authenticated with a Caller key. Its tools are generated from the same OpenAPI documents plus audit-logs, Live ticket and `gateway_request` tools, and each call runs as an ordinary gateway request with the Caller's own key.
+
+```
+claude mcp add --transport http gateway https://api-gateway.jude-nitram08.workers.dev/mcp \
+  --header "Authorization: Bearer $CALLER_KEY"
+```
 
 ## Deploy
 
