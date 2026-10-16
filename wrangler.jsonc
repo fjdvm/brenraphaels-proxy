@@ -8,6 +8,8 @@
     // Address of the audit-logs service.
     "AUDIT_LOGS_URL": "https://brenraphaels-audit-logs.vercel.app"
   },
+  // Reaches notifications directly: a Worker cannot fetch another Worker's workers.dev address.
+  "services": [{ "binding": "NOTIFICATIONS", "service": "br-notifications" }],
   "ratelimits": [
     // One limit per Caller across all routes; keep `period` in sync with RATE_LIMIT_PERIOD_SECONDS.
     { "name": "RATE_LIMITER", "namespace_id": "1001", "simple": { "limit": 600, "period": 60 } }

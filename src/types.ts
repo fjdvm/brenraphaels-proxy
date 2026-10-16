@@ -7,6 +7,8 @@ export interface Env {
   RATE_LIMITER: RateLimit
   /** Base address of the notifications service; a Worker variable. */
   NOTIFICATIONS_URL: string
+  /** Service binding to the notifications Worker; used instead of the public address when set. */
+  NOTIFICATIONS?: Fetcher
   /** Base address of the audit-logs service; a Worker variable. */
   AUDIT_LOGS_URL: string
   /** Bearer token the notifications service expects from the gateway; a Worker secret. */
