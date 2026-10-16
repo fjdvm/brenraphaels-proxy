@@ -8,6 +8,7 @@ import { files } from './routes/files.js'
 import { audit } from './routes/audit.js'
 import { health } from './routes/health.js'
 import { explorer } from './routes/explorer.js'
+import { createMcp } from './routes/mcp.js'
 import type { GatewayEnv } from './types.js'
 
 export type { Env, GatewayEnv } from './types.js'
@@ -34,6 +35,8 @@ export function createApp(deps: AppDeps) {
   app.route('/', notifications)
   app.route('/', files)
   app.route('/', audit)
+
+  app.route('/', createMcp((req, env) => Promise.resolve(app.fetch(req, env))))
 
   app.notFound((c) => c.json({ error: 'not found' }, 404))
   app.onError((_err, c) => c.json({ error: 'internal error' }, 500))
