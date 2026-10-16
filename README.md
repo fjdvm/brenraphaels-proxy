@@ -1,28 +1,26 @@
-Prerequisites:
+# api-gateway
 
-- [Vercel CLI](https://vercel.com/docs/cli) installed globally
+One URL for the notifications, file-storage and audit-logs services, running as a Cloudflare Worker (see `docs/adr/0001-gateway-runs-on-cloudflare-workers.md`).
 
-To develop locally:
-
-```
-npm install
-vc dev
-```
-
-```
-open http://localhost:3000
-```
-
-To build locally:
+## Develop
 
 ```
 npm install
-vc build
+npm test
+npm run typecheck
+npm run dev
 ```
 
-To deploy:
+## Configuration
+
+`CALLERS` (Worker secret, never committed): JSON array of `{ "name": "...", "keyHash": "<sha256 hex of the Caller's key>" }`. Add a Caller by adding an entry; revoke by removing it and redeploying.
 
 ```
-npm install
-vc deploy
+wrangler secret put CALLERS
+```
+
+## Deploy
+
+```
+npm run deploy
 ```

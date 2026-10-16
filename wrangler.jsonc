@@ -1,0 +1,6 @@
+{
+  "name": "api-gateway",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-10-01"
+  // Secrets (set with `wrangler secret put`, never committed): CALLERS
+}

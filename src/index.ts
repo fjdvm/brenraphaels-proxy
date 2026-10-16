@@ -1,14 +1,7 @@
-import { Hono } from 'hono'
+import { createApp, type Env } from './app.js'
 
-const app = new Hono()
+const app = createApp({ fetch: (input, init) => fetch(input, init) })
 
-const welcomeStrings = [
-  'Hello Hono!',
-  'To learn more about Hono on Vercel, visit https://vercel.com/docs/frameworks/backend/hono'
-]
-
-app.get('/', (c) => {
-  return c.text(welcomeStrings.join('\n\n'))
-})
-
-export default app
+export default {
+  fetch: (request: Request, env: Env, ctx: ExecutionContext) => app.fetch(request, env, ctx),
+} satisfies ExportedHandler<Env>
