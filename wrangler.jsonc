@@ -5,6 +5,8 @@
   "vars": {
     // Address of the notifications service.
     "NOTIFICATIONS_URL": "https://br-notifications.jude-nitram08.workers.dev",
+    // Address of the file-storage service.
+    "FILE_STORAGE_URL": "https://brenraphaels-file-storage.vercel.app",
     // Address of the audit-logs service.
     "AUDIT_LOGS_URL": "https://brenraphaels-audit-logs.vercel.app"
   },
@@ -14,5 +16,5 @@
     // One limit per Caller across all routes; keep `period` in sync with RATE_LIMIT_PERIOD_SECONDS.
     { "name": "RATE_LIMITER", "namespace_id": "1001", "simple": { "limit": 600, "period": 60 } }
   ]
-  // Secrets (set with `wrangler secret put`, never committed): CALLERS, NOTIFICATIONS_TOKEN, LIVE_TICKET_SECRET
+  // Secrets (set with `wrangler secret put`, never committed): CALLERS, FILE_STORAGE_TOKEN, NOTIFICATIONS_TOKEN, LIVE_TICKET_SECRET
 }

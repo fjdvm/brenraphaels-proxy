@@ -6,6 +6,8 @@ const OPEN_PATHS = new Set([
   '/health',
   '/notifications/docs',
   '/notifications/openapi.json',
+  '/files/docs',
+  '/files/openapi.json',
   '/audit/docs',
   '/audit/openapi.json',
 ])

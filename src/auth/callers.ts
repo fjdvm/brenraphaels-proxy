@@ -3,6 +3,8 @@ export interface Caller {
   keyHash: string
   /** App name notifications knows this Caller by; defaults to the Caller name. */
   app?: string
+  /** Client System code file-storage knows this Caller by (POS, CRMS, IMS, HRMS or ECOM). */
+  systemCode?: string
   /** The Caller's own audit-logs API key; its scope decides which audit-logs routes it may use. */
   auditKey?: string
   /** Scope the audit key carries (informational; audit-logs enforces it). */
