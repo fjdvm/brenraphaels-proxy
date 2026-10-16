@@ -23,6 +23,10 @@ Other Worker secrets: `FILE_STORAGE_TOKEN` (file-storage's `GATEWAY_SECRET`), `N
 
 Production: https://api-gateway.jude-nitram08.workers.dev
 
+## Explorer
+
+`GET /` (also `/ui`) serves an interactive API explorer: pick an endpoint, fill in the form, send it and read the response. It lists the notifications and file-storage endpoints from their live OpenAPI documents, plus the audit-logs and gateway endpoints, and has a Live tester for WebSocket tickets. The page is open and holds no data; paste a Caller key into it and the key stays in the browser tab (session storage) and is sent only to this gateway.
+
 ## Deploy
 
 ```

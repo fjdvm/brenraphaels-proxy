@@ -669,3 +669,27 @@ describe('Live tickets', () => {
     expect(res.status).toBe(401)
   })
 })
+
+describe('API explorer', () => {
+  it('serves the explorer page at / and /ui without a key', async () => {
+    for (const path of ['/', '/ui']) {
+      const res = await call(path)
+      expect(res.status).toBe(200)
+      expect(res.headers.get('content-type')).toContain('text/html')
+      const html = await res.text()
+      expect(html).toContain('<title>')
+      expect(html).toContain('/live-tickets')
+    }
+  })
+
+  it('exposes no secrets or Caller data on the page', async () => {
+    const html = await (await call('/')).text()
+    expect(html).not.toContain(KEY_A)
+    expect(html).not.toContain(await hashKey(KEY_A))
+  })
+
+  it('still requires a key for other paths and methods', async () => {
+    expect((await call('/', { method: 'POST' })).status).toBe(401)
+    expect((await call('/live-tickets', { method: 'POST' })).status).toBe(401)
+  })
+})
