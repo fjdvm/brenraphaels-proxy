@@ -1,5 +1,6 @@
 import { Hono } from 'hono'
 import { callerAuth } from './middleware/caller-auth.js'
+import { rateLimit } from './middleware/rate-limit.js'
 import { requestId } from './middleware/request-id.js'
 import { health } from './routes/health.js'
 import type { GatewayEnv } from './types.js'
@@ -20,6 +21,7 @@ export function createApp(deps: AppDeps) {
   })
   app.use(requestId)
   app.use(callerAuth)
+  app.use(rateLimit)
 
   app.route('/', health)
 

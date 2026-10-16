@@ -1,6 +1,10 @@
 {
   "name": "api-gateway",
   "main": "src/index.ts",
-  "compatibility_date": "2026-10-01"
+  "compatibility_date": "2026-10-01",
+  "ratelimits": [
+    // One limit per Caller across all routes; keep `period` in sync with RATE_LIMIT_PERIOD_SECONDS.
+    { "name": "RATE_LIMITER", "namespace_id": "1001", "simple": { "limit": 600, "period": 60 } }
+  ]
   // Secrets (set with `wrangler secret put`, never committed): CALLERS
 }

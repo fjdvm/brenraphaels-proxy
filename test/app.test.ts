@@ -5,14 +5,29 @@ import { hashKey } from '../src/auth/callers.js'
 const KEY_A = 'key-for-crms'
 const KEY_B = 'key-for-pos'
 
-async function env(keys: Record<string, string> = { crms: KEY_A, pos: KEY_B }) {
+/** Stub of the Cloudflare rate limiting binding: allows everything except keys in `blocked`. */
+function limiter(blocked: string[] = []) {
+  const seen: string[] = []
+  return {
+    seen,
+    limit: async ({ key }: { key: string }) => {
+      seen.push(key)
+      return { success: !blocked.includes(key) }
+    },
+  }
+}
+
+async function env(
+  keys: Record<string, string> = { crms: KEY_A, pos: KEY_B },
+  rateLimiter: Pick<RateLimit, 'limit'> = limiter(),
+) {
   const callers = await Promise.all(
     Object.entries(keys).map(async ([name, key]) => ({ name, keyHash: await hashKey(key) })),
   )
-  return { CALLERS: JSON.stringify(callers) }
+  return { CALLERS: JSON.stringify(callers), RATE_LIMITER: rateLimiter }
 }
 
-async function call(path: string, init: RequestInit = {}, e?: { CALLERS: string }) {
+async function call(path: string, init: RequestInit = {}, e?: Awaited<ReturnType<typeof env>>) {
   const app = createApp({ fetch: async () => new Response('downstream') })
   return app.fetch(new Request(`https://gw.test${path}`, init), e ?? (await env()))
 }
@@ -57,7 +72,7 @@ describe('Caller key check', () => {
   })
 
   it('fails closed when the Caller map is missing or malformed', async () => {
-    const bad = { CALLERS: 'not json' }
+    const bad = { ...(await env()), CALLERS: 'not json' }
     expect((await call('/files/x', { headers: bearer(KEY_A) }, bad)).status).toBe(401)
     expect((await call('/health', {}, bad)).status).toBe(200)
   })
@@ -98,5 +113,40 @@ describe('X-Request-Id', () => {
     )
     expect(res.status).toBe(500)
     expect(res.headers.get('X-Request-Id')).toBeTruthy()
+  })
+})
+
+describe('Per-Caller rate limit', () => {
+  it('returns 429 with a retry hint when the Caller is over its limit', async () => {
+    const e = await env(undefined, limiter(['crms']))
+    const res = await call('/files/x', { headers: bearer(KEY_A) }, e)
+    expect(res.status).toBe(429)
+    expect(Number(res.headers.get('Retry-After'))).toBeGreaterThan(0)
+    expect(res.headers.get('X-Request-Id')).toBeTruthy()
+  })
+
+  it('does not affect another Caller', async () => {
+    const rl = limiter(['crms'])
+    const e = await env(undefined, rl)
+    expect((await call('/nowhere', { headers: bearer(KEY_A) }, e)).status).toBe(429)
+    expect((await call('/nowhere', { headers: bearer(KEY_B) }, e)).status).toBe(404)
+    expect(rl.seen).toEqual(['crms', 'pos'])
+  })
+
+  it('counts every route against the same Caller key', async () => {
+    const rl = limiter()
+    const e = await env(undefined, rl)
+    for (const path of ['/notifications/x', '/files/x', '/audit/x']) {
+      await call(path, { headers: bearer(KEY_A) }, e)
+    }
+    expect(rl.seen).toEqual(['crms', 'crms', 'crms'])
+  })
+
+  it('does not rate limit unauthenticated requests or /health', async () => {
+    const rl = limiter()
+    const e = await env(undefined, rl)
+    await call('/files/x', {}, e)
+    await call('/health', {}, e)
+    expect(rl.seen).toEqual([])
   })
 })
