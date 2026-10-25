@@ -35,6 +35,7 @@ const NOTIFY_SPEC = {
     '/notifications/{id}/read': {
       post: { operationId: 'markRead', summary: 'Mark read', parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }] },
     },
+    '/orders/live': { get: { operationId: 'orderLive', summary: 'Order WebSocket' } },
     '/live': { get: { operationId: 'live', summary: 'WebSocket' } },
     '/mcp': { post: { operationId: 'mcp', summary: 'MCP' } },
   },
@@ -129,7 +130,7 @@ describe('gateway MCP server', () => {
         'files_request_upload', 'audit_write_event', 'audit_list_events', 'issue_live_ticket', 'gateway_request',
       ]),
     )
-    for (const skipped of ['notifications_live', 'notifications_mcp', 'files_cleanup', 'files_health'])
+    for (const skipped of ['notifications_live', 'notifications_order_live', 'notifications_mcp', 'files_cleanup', 'files_health'])
       expect(names).not.toContain(skipped)
     const send = json.result.tools.find((t: { name: string }) => t.name === 'notifications_send_notification')
     expect(send.inputSchema.required).toEqual(['title', 'userIds'])
@@ -182,6 +183,13 @@ describe('gateway MCP server', () => {
     const { call } = await setup()
     const { json } = await call('issue_live_ticket', { userId: 'u1' })
     expect(JSON.parse(json.result.content[0].text.split('\n').slice(1).join('\n')).ticket).toBeTruthy()
+  })
+
+  it('honors the Orders channel when issuing a Live ticket through MCP', async () => {
+    const t = await setup()
+    const { json } = await t.call('issue_live_ticket', { userId: 'c1', channel: 'orders' })
+    expect(json.result.isError).toBe(true)
+    expect(json.result.content[0].text).toContain('403')
   })
 
   it('rejects unknown tools and unsafe gateway_request paths', async () => {
