@@ -6,6 +6,7 @@ import { notifications } from './routes/notifications.js'
 import { live } from './routes/live.js'
 import { files } from './routes/files.js'
 import { audit } from './routes/audit.js'
+import { creoms } from './routes/creoms.js'
 import { health } from './routes/health.js'
 import { docs } from './routes/docs.js'
 import { createMcp } from './routes/mcp.js'
@@ -32,6 +33,7 @@ export function createApp(deps: AppDeps) {
   app.route('/', health)
   app.route('/', docs)
   app.route('/', live)
+  app.route('/', creoms)
   app.route('/', notifications)
   app.route('/', files)
   app.route('/', audit)
