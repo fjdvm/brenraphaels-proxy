@@ -3,6 +3,9 @@ import type { Caller } from './auth/callers.js'
 export interface Env {
   /** JSON array of { name, keyHash }; a Worker secret. */
   CALLERS: string
+  /** CREOMS origin and dedicated signal credential; never the storefront Caller key. */
+  CREOMS_URL?: string
+  CREOMS_SIGNAL_SECRET?: string
   /** Cloudflare rate limiting binding; keyed by Caller name. */
   RATE_LIMITER: RateLimit
   /** Base address of the notifications service; a Worker variable. */
