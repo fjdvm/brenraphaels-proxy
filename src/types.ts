@@ -3,6 +3,9 @@ import type { Caller } from './auth/callers.js'
 export interface Env {
   /** JSON array of { name, keyHash }; a Worker secret. */
   CALLERS: string
+  /** CREOMS origin and dedicated signal credential; never the storefront Caller key. */
+  CREOMS_URL?: string
+  CREOMS_SIGNAL_SECRET?: string
   /** Cloudflare rate limiting binding; keyed by Caller name. */
   RATE_LIMITER: RateLimit
   /** Base address of the notifications service; a Worker variable. */
@@ -17,6 +20,8 @@ export interface Env {
   FILE_STORAGE_TOKEN: string
   /** Bearer token the notifications service expects from the gateway; a Worker secret. */
   NOTIFICATIONS_TOKEN: string
+  /** Secret the notifications live routes require in X-Gateway-Secret (its GATEWAY_SECRET); a Worker secret. */
+  NOTIFICATIONS_GATEWAY_SECRET: string
   /** Key that signs and verifies Live tickets; a Worker secret. */
   LIVE_TICKET_SECRET: string
 }

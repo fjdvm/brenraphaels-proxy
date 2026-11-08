@@ -17,6 +17,14 @@ live.post('/live-tickets', async (c) => {
   if (!userId) return bad(c, 'userId is required')
   const caller = c.get('caller')
   const app = caller.app ?? caller.name
+  if (body.channel !== undefined) {
+    if (body.channel !== 'orders' || body.ticketId !== undefined || body.role !== undefined)
+      return bad(c, 'orders channel cannot name a Ticket or role')
+    if (caller.systemCode !== 'ECOM') return c.json({ error: 'storefront Caller required' }, 403)
+    return c.json(
+      await issueLiveTicket(c.env.LIVE_TICKET_SECRET, { userId, app, channel: 'orders' }),
+    )
+  }
   const isConversation = body.ticketId !== undefined || body.role !== undefined
   const ticketId = str(body.ticketId)
   if (isConversation && (!ticketId || !ROLES.includes(body.role)))
@@ -26,12 +34,18 @@ live.post('/live-tickets', async (c) => {
 })
 
 /** Browsers hold no Caller key, so the ticket is the credential; checked before any upgrade. */
-async function forwardLive(c: Parameters<typeof forward>[0], ticketId: string | undefined) {
+async function forwardLive(
+  c: Parameters<typeof forward>[0],
+  ticketId: string | undefined,
+  channel?: 'orders',
+) {
   const claims = await verifyLiveTicket(c.env.LIVE_TICKET_SECRET, c.req.query('ticket'))
   const declaredUser = c.req.query('userId')
   if (
     !claims ||
     claims.ticketId !== ticketId ||
+    claims.channel !== channel ||
+    (channel === 'orders' && claims.role !== undefined) ||
     (declaredUser !== undefined && declaredUser !== claims.userId)
   ) {
     return c.json({ error: 'invalid ticket' }, 401)
@@ -39,12 +53,13 @@ async function forwardLive(c: Parameters<typeof forward>[0], ticketId: string | 
   // The verified values replace anything the browser declared.
   const query = new URLSearchParams({ userId: claims.userId })
   if (claims.role) query.set('role', claims.role)
-  else query.set('app', claims.app)
+  else if (!channel) query.set('app', claims.app)
   return forward(c, {
     prefix: '/notifications',
     baseUrl: c.env.NOTIFICATIONS_URL,
     query,
-    headers: { Authorization: `Bearer ${c.env.NOTIFICATIONS_TOKEN}` },
+    // The live routes take the gateway secret in place of the bearer token.
+    headers: { 'X-Gateway-Secret': c.env.NOTIFICATIONS_GATEWAY_SECRET },
   })
 }
 
@@ -52,3 +67,18 @@ live.get('/notifications/live', (c) => forwardLive(c, undefined))
 live.get('/notifications/conversations/:ticketId/live', (c) =>
   forwardLive(c, c.req.param('ticketId')),
 )
+
+live.get('/notifications/orders/live', (c) => forwardLive(c, undefined, 'orders'))
+
+// Guard the whole prefix so the general notifications proxy cannot publish for other Callers.
+live.all('/notifications/orders/*', async (c) => {
+  if (c.get('caller').systemCode !== 'ECOM')
+    return c.json({ error: 'storefront Caller required' }, 403)
+  if (c.req.method !== 'POST' || c.req.path !== '/notifications/orders/events')
+    return c.json({ error: 'not found' }, 404)
+  return forward(c, {
+    prefix: '/notifications',
+    baseUrl: c.env.NOTIFICATIONS_URL,
+    headers: { Authorization: `Bearer ${c.env.NOTIFICATIONS_TOKEN}` },
+  })
+})

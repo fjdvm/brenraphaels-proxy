@@ -6,7 +6,10 @@ import { notifications } from './routes/notifications.js'
 import { live } from './routes/live.js'
 import { files } from './routes/files.js'
 import { audit } from './routes/audit.js'
+import { creoms } from './routes/creoms.js'
 import { health } from './routes/health.js'
+import { docs } from './routes/docs.js'
+import { createMcp } from './routes/mcp.js'
 import type { GatewayEnv } from './types.js'
 
 export type { Env, GatewayEnv } from './types.js'
@@ -28,10 +31,14 @@ export function createApp(deps: AppDeps) {
   app.use(rateLimit)
 
   app.route('/', health)
+  app.route('/', docs)
   app.route('/', live)
+  app.route('/', creoms)
   app.route('/', notifications)
   app.route('/', files)
   app.route('/', audit)
+
+  app.route('/', createMcp((req, env) => Promise.resolve(app.fetch(req, env))))
 
   app.notFound((c) => c.json({ error: 'not found' }, 404))
   app.onError((_err, c) => c.json({ error: 'internal error' }, 500))

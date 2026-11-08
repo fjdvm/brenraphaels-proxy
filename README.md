@@ -19,6 +19,21 @@ npm run dev
 wrangler secret put CALLERS
 ```
 
+Other Worker secrets: `FILE_STORAGE_TOKEN` (file-storage's `GATEWAY_SECRET`), `NOTIFICATIONS_TOKEN` (notifications' `API_TOKEN`), `NOTIFICATIONS_GATEWAY_SECRET` (notifications' `GATEWAY_SECRET`, sent as `X-Gateway-Secret` on the live routes) and `LIVE_TICKET_SECRET`. Set each with `printf '%s' "$VALUE" | wrangler secret put NAME`; the matching value must be set on the service too.
+
+Production: https://api-gateway.jude-nitram08.workers.dev
+
+## Docs and MCP
+
+`GET /` (also `/ui`, `/docs`) is the gateway's documentation site: guides, an API reference built from the notifications and file-storage OpenAPI documents, and a Try it panel on every endpoint. It is open and holds no data; paste a Caller key into it and the key stays in the browser tab (session storage) and is sent only to this gateway.
+
+`POST /mcp` is an MCP server (Streamable HTTP, stateless) for AI agents, authenticated with a Caller key. Its tools are generated from the same OpenAPI documents plus audit-logs, Live ticket and `gateway_request` tools, and each call runs as an ordinary gateway request with the Caller's own key.
+
+```
+claude mcp add --transport http gateway https://api-gateway.jude-nitram08.workers.dev/mcp \
+  --header "Authorization: Bearer $CALLER_KEY"
+```
+
 ## Deploy
 
 ```
