@@ -5,9 +5,16 @@ import { createHash, randomUUID } from 'node:crypto'
 import { once } from 'node:events'
 import { setTimeout as delay } from 'node:timers/promises'
 import WebSocket, { WebSocketServer } from 'ws'
+import { gzipSync } from 'node:zlib'
 
 // Only downstream services are stubbed; every assertion crosses the container's public interface.
 const stub = createServer(async (req, res) => {
+  if (req.url === '/files/compressed') {
+    const compressed = gzipSync('compressed upstream response')
+    res.writeHead(200, { 'Content-Type': 'text/plain', 'Content-Encoding': 'gzip', 'Content-Length': compressed.length })
+    res.end(compressed)
+    return
+  }
   let body = ''
   for await (const chunk of req) body += chunk
   res.setHeader('Content-Type', 'application/json')
@@ -71,6 +78,18 @@ try {
     else assert.equal(forwarded.headers['x-system-code'], undefined)
   }
   console.log('PASS audit, file and notification HTTP forwarding')
+  const streamed = await call('/files', {
+    method: 'POST', duplex: 'half',
+    body: new ReadableStream({ start(controller) { controller.enqueue(new TextEncoder().encode('streamed upload')); controller.close() } }),
+  })
+  assert.equal(streamed.status, 200, await streamed.clone().text())
+  assert.equal((await streamed.json()).body, 'streamed upload')
+  console.log('PASS streamed file request forwarding')
+  const compressed = await call('/files/compressed')
+  assert.equal(compressed.status, 200)
+  assert.equal(await compressed.text(), 'compressed upstream response')
+  console.log('PASS compressed upstream response')
+
   const issue = await call('/live-tickets', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{"userId":"u1"}' })
   assert.equal(issue.status, 200)
   const { ticket, expiresIn } = await issue.json()

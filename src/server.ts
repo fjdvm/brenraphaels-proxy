@@ -1,10 +1,27 @@
 import { createAdaptorServer } from '@hono/node-server'
 import httpProxy from 'http-proxy'
+import * as zlib from 'node:zlib'
 import { createApp, type Env } from './app.js'
 
 /** Node fetch requires duplex when forwarding a streamed request body. */
-const outboundFetch: typeof fetch = (input, init) =>
-  fetch(input, { ...init, ...(init?.body ? { duplex: 'half' } : {}) } as RequestInit)
+const outboundFetch: typeof fetch = async (input, init) => {
+  const headers = new Headers(init?.headers)
+  const connectionHeaders = (headers.get('connection') ?? '').split(',').map(name => name.trim()).filter(Boolean)
+  for (const name of [
+    ...connectionHeaders, 'connection', 'keep-alive', 'proxy-authenticate',
+    'proxy-authorization', 'te', 'trailer', 'transfer-encoding', 'upgrade',
+  ]) headers.delete(name)
+  const response = await fetch(input, { ...init, headers, ...(init?.body ? { duplex: 'half' } : {}) } as RequestInit)
+  // Node fetch decodes these bodies but leaves the encoded entity's framing headers intact.
+  const encodings = response.headers.get('content-encoding')?.toLowerCase().split(',').map(value => value.trim())
+  if (response.body && encodings?.every(value => ['gzip', 'x-gzip', 'deflate', 'br'].includes(value) || (value === 'zstd' && typeof zlib.createZstdDecompress === 'function'))) {
+    const decodedHeaders = new Headers(response.headers)
+    decodedHeaders.delete('content-encoding')
+    decodedHeaders.delete('content-length')
+    return new Response(response.body, { status: response.status, statusText: response.statusText, headers: decodedHeaders })
+  }
+  return response
+}
 
 export function startGateway(env: Env, port: number) {
   const app = createApp({ fetch: outboundFetch })
