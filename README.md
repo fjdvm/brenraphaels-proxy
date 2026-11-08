@@ -39,6 +39,6 @@ claude mcp add --transport http gateway https://api-gateway.jude-nitram08.worker
 
 `.github/workflows/ci.yml` typechecks, runs existing tests, builds the Docker image and runs `npm run test:container`. The smoke test requires Docker on Linux (host networking); it starts its own container and stubbed upstreams. It checks health, HTTP forwarding, Live ticket issue and WebSocket relay, credential rejection, 600 requests per Caller across routes, Caller isolation, 429/Retry-After, and recovery after the real 60-second window. It takes about one minute. Set `GATEWAY_IMAGE` or `SMOKE_PORT` to override the image or gateway port.
 
-GHCR publication, Azure deployment and verification against the new services are tracked in [Ticket#159](https://github.com/fjdvm/brenraphaels-authentication-microservice/issues/159). This change does not repoint production Callers.
+CI publishes to GHCR and deploys the gateway to Azure with min 1 / max 2 replicas after smoke tests pass. See the [Azure deployment guide](docs/deployment/azure.md) for secrets, probes, real-service verification and rollback. Production Callers keep their existing Cloudflare address until the separate cutover.
 
 The old Cloudflare deployment stays available for rollback. Its entrypoint is retained in `src/worker.ts`, with `wrangler.jsonc` pointing there; manual redeployment uses `npm run deploy:worker` and the existing Cloudflare credentials/secrets. CI no longer automatically redeploys that Worker. Keep it serving until the staged cutover is verified and the quiet week in Spec#138 has passed.
