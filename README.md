@@ -1,27 +1,28 @@
 # api-gateway
 
-One URL for the notifications, file-storage and audit-logs services, running as a Cloudflare Worker (see `docs/adr/0001-gateway-runs-on-cloudflare-workers.md`).
+One URL for notifications, file-storage and audit-logs, running as a Node service in a Docker image. See [ADR-0002](docs/adr/0002-move-portal-and-shared-services-to-azure-container-apps.md).
 
 ## Develop
 
+Use Node 22 or later. Run `npm ci`, `npm test` and `npm run typecheck`. Copy `.env.production.example` to `.env.production` and supply the existing secrets. Start with `node --env-file=.env.production --import tsx src/index.ts`; `npm run dev` watches with environment variables already exported. For a compiled build, run `npm run build` and `node --env-file=.env.production dist/index.js`.
+
+## Container
+
+```sh
+docker build -t gateway:test .
+docker run --rm -p 8080:8080 --env-file .env.production gateway:test
+curl http://localhost:8080/health
 ```
-npm install
-npm test
-npm run typecheck
-npm run dev
-```
+
+The image runs as the unprivileged `node` user and listens on `0.0.0.0:$PORT` (default 8080). `/health` is public and returns `{"status":"ok"}`. SIGTERM drains HTTP requests with a ten-second shutdown limit; live clients reconnect after shutdown. Logs include `x-request-id`, method, path and response status without ticket query strings or credentials.
 
 ## Configuration
 
-`CALLERS` (Worker secret, never committed): JSON array of `{ "name": "...", "keyHash": "<sha256 hex of the Caller's key>" }`. Optional per Caller: `"auditKey"` (its audit-logs API key, which carries the scope) and `"auditScope"`; a Caller without `auditKey` gets 403 on `/audit/*`. Add a Caller by adding an entry; revoke by removing it and redeploying.
+`.env.production.example` lists runtime variables. Copy the **existing** `CALLERS` JSON, including its hashes and optional mappings (`app`, `systemCode`, `auditKey`, `auditScope`), and all existing secrets. Callers change only the gateway address. Add a Caller by adding an entry; revoke by removing it and restarting the service. A Caller without `auditKey` receives 403 on `/audit/*`; one without `systemCode` receives 403 on `/files`.
 
-```
-wrangler secret put CALLERS
-```
+Notifications is reached using ordinary HTTP(S) at `NOTIFICATIONS_URL`; production uses HTTPS. Its ordinary routes use `NOTIFICATIONS_TOKEN`, and live routes use `NOTIFICATIONS_GATEWAY_SECRET`. `FILE_STORAGE_TOKEN` and `LIVE_TICKET_SECRET` keep their names and values too. There is no Workers service binding in the Node runtime. `CREOMS_URL` and `CREOMS_SIGNAL_SECRET` remain optional for the storefront Staff signal route.
 
-Other Worker secrets: `FILE_STORAGE_TOKEN` (file-storage's `GATEWAY_SECRET`), `NOTIFICATIONS_TOKEN` (notifications' `API_TOKEN`), `NOTIFICATIONS_GATEWAY_SECRET` (notifications' `GATEWAY_SECRET`, sent as `X-Gateway-Secret` on the live routes) and `LIVE_TICKET_SECRET`. Set each with `printf '%s' "$VALUE" | wrangler secret put NAME`; the matching value must be set on the service too.
-
-Production: https://api-gateway.jude-nitram08.workers.dev
+The limiter allows 600 authenticated requests per Caller per 60-second fixed window shared across routes **in each instance**. Excess requests return 429 with `Retry-After: 60`. Public health/docs and ticket-authenticated live connections do not consume Caller limits. Counts reset on restart; replicas have independent limits. No database or credential migration is required.
 
 ## Docs and MCP
 
@@ -34,12 +35,10 @@ claude mcp add --transport http gateway https://api-gateway.jude-nitram08.worker
   --header "Authorization: Bearer $CALLER_KEY"
 ```
 
-## Deploy
+## CI and rollout
 
-```
-npm run deploy
-```
+`.github/workflows/ci.yml` typechecks, runs existing tests, builds the Docker image and runs `npm run test:container`. The smoke test requires Docker on Linux (host networking); it starts its own container and stubbed upstreams. It checks health, HTTP forwarding, Live ticket issue and WebSocket relay, credential rejection, 600 requests per Caller across routes, Caller isolation, 429/Retry-After, and recovery after the real 60-second window. It takes about one minute. Set `GATEWAY_IMAGE` or `SMOKE_PORT` to override the image or gateway port.
 
-## CI/CD
+GHCR publication, Azure deployment and verification against the new services are tracked in [Ticket#159](https://github.com/fjdvm/brenraphaels-authentication-microservice/issues/159). This change does not repoint production Callers.
 
-`.github/workflows/ci.yml` typechecks and tests every push and pull request, and deploys on pushes to `main`. It needs the repository secrets `CLOUDFLARE_API_TOKEN` (Workers edit permission) and `CLOUDFLARE_ACCOUNT_ID`. The `CALLERS` Worker secret lives in Cloudflare, not in GitHub.
+The old Cloudflare deployment stays available for rollback. Its entrypoint is retained in `src/worker.ts`, with `wrangler.jsonc` pointing there; manual redeployment uses `npm run deploy:worker` and the existing Cloudflare credentials/secrets. CI no longer automatically redeploys that Worker. Keep it serving until the staged cutover is verified and the quiet week in Spec#138 has passed.

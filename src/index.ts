@@ -1,20 +1,31 @@
-import { createApp, type Env } from './app.js'
+import { startGateway } from './server.js'
+import { createRateLimiter } from './middleware/rate-limit.js'
+import type { Env } from './types.js'
 
-/**
- * Routes calls for the notifications service through its service binding when one is configured:
- * Cloudflare does not let a Worker reach another Worker's workers.dev address in the same account.
- */
-function outboundFetch(env: Env): typeof fetch {
-  return (input, init) => {
-    const url = new URL(input instanceof Request ? input.url : input)
-    if (env.NOTIFICATIONS && url.host === new URL(env.NOTIFICATIONS_URL).host) {
-      return env.NOTIFICATIONS.fetch(input, init)
-    }
-    return fetch(input, init)
-  }
+const required = [
+  'CALLERS', 'AUDIT_LOGS_URL', 'FILE_STORAGE_URL', 'NOTIFICATIONS_URL',
+  'FILE_STORAGE_TOKEN', 'NOTIFICATIONS_TOKEN', 'NOTIFICATIONS_GATEWAY_SECRET', 'LIVE_TICKET_SECRET',
+] as const
+for (const key of required) {
+  if (!process.env[key]) throw new Error(`Missing required environment variable: ${key}`)
 }
-
-export default {
-  fetch: (request: Request, env: Env, ctx: ExecutionContext) =>
-    createApp({ fetch: outboundFetch(env) }).fetch(request, env, ctx),
-} satisfies ExportedHandler<Env>
+for (const key of ['AUDIT_LOGS_URL', 'FILE_STORAGE_URL', 'NOTIFICATIONS_URL'] as const) {
+  if (!['http:', 'https:'].includes(new URL(process.env[key]!).protocol))
+    throw new Error(`${key} must be an HTTP(S) address`)
+}
+const port = Number(process.env.PORT ?? 8080)
+if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error('Invalid PORT')
+const env = {
+  ...Object.fromEntries(required.map(key => [key, process.env[key]])),
+  CREOMS_URL: process.env.CREOMS_URL,
+  CREOMS_SIGNAL_SECRET: process.env.CREOMS_SIGNAL_SECRET,
+  RATE_LIMITER: createRateLimiter(),
+} as Env
+const server = startGateway(env, port)
+console.log(JSON.stringify({ event: 'listening', port }))
+for (const signal of ['SIGINT', 'SIGTERM']) {
+  process.once(signal, () => {
+    server.close(() => process.exit(0))
+    setTimeout(() => process.exit(0), 10_000).unref()
+  })
+}
