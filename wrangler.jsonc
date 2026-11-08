@@ -1,6 +1,6 @@
 {
   "name": "api-gateway",
-  "main": "src/index.ts",
+  "main": "src/worker.ts",
   "compatibility_date": "2026-10-01",
   "vars": {
     // Set CREOMS_URL to the CREOMS HTTPS origin to enable POST /creoms/notifications/signal.

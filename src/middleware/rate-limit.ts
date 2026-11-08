@@ -16,3 +16,21 @@ export const rateLimit = createMiddleware<GatewayEnv>(async (c, next) => {
   }
   await next()
 })
+
+/** Fixed windows, shared by all routes in this process. No polling timer or unbounded key cache. */
+export function createRateLimiter() {
+  const callers = new Map<string, number>()
+  let windowStart = Date.now()
+  return {
+    async limit({ key }: { key: string }) {
+      const now = Date.now()
+      if (now - windowStart >= RATE_LIMIT_PERIOD_SECONDS * 1000) {
+        callers.clear()
+        windowStart = now
+      }
+      const count = (callers.get(key) ?? 0) + 1
+      callers.set(key, count)
+      return { success: count <= 600 }
+    },
+  }
+}

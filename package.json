@@ -3,20 +3,28 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "wrangler dev",
-    "deploy": "wrangler deploy",
+    "dev": "tsx watch src/index.ts",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "build": "tsc -p tsconfig.build.json",
+    "start": "node dist/index.js",
+    "test:container": "node test/container/smoke.mjs",
+    "deploy:worker": "wrangler deploy"
   },
   "dependencies": {
-    "hono": "^4.13.13"
+    "@hono/node-server": "^2.1.6",
+    "hono": "^4.13.13",
+    "http-proxy": "^1.18.1"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^5.20261016.1",
+    "@types/http-proxy": "^1.17.17",
     "@types/node": "^26.1.1",
+    "@types/ws": "^8.18.2",
     "tsx": "^4.23.0",
     "typescript": "^7.0.2",
     "vitest": "^5.0.5",
-    "wrangler": "^4.151.1"
+    "wrangler": "^4.151.1",
+    "ws": "^8.22.2"
   }
 }
