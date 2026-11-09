@@ -45,7 +45,6 @@ const call = (path, init = {}, key = 'smoke-key') => fetch(base + path, { ...ini
 const sockets = new Set()
 try {
   let ready = false
-  const started = Date.now()
   for (let i = 0; i < 200; i++) {
     try {
       const res = await fetch(base + '/health')
@@ -145,6 +144,7 @@ try {
   assert.equal(publishForwarded.path, '/orders/changed')
   assert.equal(publishForwarded.headers.authorization, 'Bearer notify-secret')
   console.log('PASS Staff Orders WebSocket, wrong-User refusal and ECOM-only publish')
+  const limitStarted = Date.now()
   for (let i = 0; i < 600; i++) {
     const res = await call(i % 2 ? '/missing' : '/other', {}, 'rate-key')
     assert.equal(res.status, 404, `allowed request ${i + 1}`)
@@ -158,7 +158,7 @@ try {
   assert.equal((await fetch(base + '/health')).status, 200)
   console.log('PASS 600 requests per Caller across routes, 429, Caller isolation and health bypass')
   // Observe the real 60-second period through HTTP; no clock or limiter internals are mocked.
-  await delay(Math.max(0, 61_000 - (Date.now() - started)))
+  await delay(Math.max(0, 61_000 - (Date.now() - limitStarted)))
   assert.equal((await call('/missing', {}, 'rate-key')).status, 404)
   console.log('PASS rate limit resets after 60 seconds')
 } catch (error) {
