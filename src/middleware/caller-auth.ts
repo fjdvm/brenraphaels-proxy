@@ -15,7 +15,7 @@ const OPEN_PATHS = new Set([
 const DOC_PATHS = new Set(['/', '/ui', '/docs'])
 
 /** Live routes are opened by browsers, which hold a Live ticket instead of a Caller key. */
-const LIVE_PATH = /^\/notifications\/(live|orders\/live|conversations\/[^/]+\/live)$/
+const LIVE_PATH = /^\/notifications\/(live|orders\/(staff\/)?live|conversations\/[^/]+\/live)$/
 
 /** Requires a valid Caller key as a bearer credential, except on open paths. */
 export const callerAuth = createMiddleware<GatewayEnv>(async (c, next) => {

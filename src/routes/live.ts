@@ -18,11 +18,12 @@ live.post('/live-tickets', async (c) => {
   const caller = c.get('caller')
   const app = caller.app ?? caller.name
   if (body.channel !== undefined) {
-    if (body.channel !== 'orders' || body.ticketId !== undefined || body.role !== undefined)
-      return bad(c, 'orders channel cannot name a Ticket or role')
-    if (caller.systemCode !== 'ECOM') return c.json({ error: 'storefront Caller required' }, 403)
+    if (!['orders', 'staff-orders'].includes(body.channel) || body.ticketId !== undefined || body.role !== undefined)
+      return bad(c, 'Order channels cannot name a Ticket or role')
+    const requiredSystem = body.channel === 'staff-orders' ? 'CRMS' : 'ECOM'
+    if (caller.systemCode !== requiredSystem) return c.json({ error: `${requiredSystem} Caller required` }, 403)
     return c.json(
-      await issueLiveTicket(c.env.LIVE_TICKET_SECRET, { userId, app, channel: 'orders' }),
+      await issueLiveTicket(c.env.LIVE_TICKET_SECRET, { userId, app, channel: body.channel }),
     )
   }
   const isConversation = body.ticketId !== undefined || body.role !== undefined
@@ -37,7 +38,7 @@ live.post('/live-tickets', async (c) => {
 async function forwardLive(
   c: Parameters<typeof forward>[0],
   ticketId: string | undefined,
-  channel?: 'orders',
+  channel?: 'orders' | 'staff-orders',
 ) {
   const claims = await verifyLiveTicket(c.env.LIVE_TICKET_SECRET, c.req.query('ticket'))
   const declaredUser = c.req.query('userId')
@@ -45,7 +46,7 @@ async function forwardLive(
     !claims ||
     claims.ticketId !== ticketId ||
     claims.channel !== channel ||
-    (channel === 'orders' && claims.role !== undefined) ||
+    (channel !== undefined && claims.role !== undefined) ||
     (declaredUser !== undefined && declaredUser !== claims.userId)
   ) {
     return c.json({ error: 'invalid ticket' }, 401)
@@ -69,12 +70,13 @@ live.get('/notifications/conversations/:ticketId/live', (c) =>
 )
 
 live.get('/notifications/orders/live', (c) => forwardLive(c, undefined, 'orders'))
+live.get('/notifications/orders/staff/live', (c) => forwardLive(c, undefined, 'staff-orders'))
 
 // Guard the whole prefix so the general notifications proxy cannot publish for other Callers.
 live.all('/notifications/orders/*', async (c) => {
   if (c.get('caller').systemCode !== 'ECOM')
     return c.json({ error: 'storefront Caller required' }, 403)
-  if (c.req.method !== 'POST' || c.req.path !== '/notifications/orders/events')
+  if (c.req.method !== 'POST' || !['/notifications/orders/events', '/notifications/orders/changed'].includes(c.req.path))
     return c.json({ error: 'not found' }, 404)
   return forward(c, {
     prefix: '/notifications',
