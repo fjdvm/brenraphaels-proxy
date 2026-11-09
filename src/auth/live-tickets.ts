@@ -7,7 +7,7 @@ export interface LiveTicketClaims {
   ticketId?: string
   role?: string
   /** Absent for existing inbox and Conversation passes. */
-  channel?: 'orders'
+  channel?: 'orders' | 'staff-orders'
 }
 
 const encoder = new TextEncoder()

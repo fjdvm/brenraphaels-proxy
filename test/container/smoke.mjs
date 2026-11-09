@@ -34,6 +34,8 @@ const hash = key => createHash('sha256').update(key).digest('hex')
 const callers = [
   { name: 'portal', keyHash: hash('smoke-key'), auditKey: 'audit-secret', systemCode: 'POS' },
   { name: 'limited', keyHash: hash('rate-key') },
+  { name: 'creoms', keyHash: hash('crms-key'), app: 'crms', systemCode: 'CRMS' },
+  { name: 'shop', keyHash: hash('shop-key'), app: 'ecommerce', systemCode: 'ECOM' },
 ]
 const env = { PORT: String(port), CALLERS: JSON.stringify(callers), AUDIT_LOGS_URL: upstream, FILE_STORAGE_URL: upstream, NOTIFICATIONS_URL: upstream, FILE_STORAGE_TOKEN: 'file-secret', NOTIFICATIONS_TOKEN: 'notify-secret', NOTIFICATIONS_GATEWAY_SECRET: 'gateway-secret', LIVE_TICKET_SECRET: 'ticket-secret' }
 const container = spawn('docker', ['run', '--rm', '--name', name, '--network', 'host', ...Object.entries(env).flatMap(([k,v]) => ['-e', `${k}=${v}`]), process.env.GATEWAY_IMAGE ?? 'gateway:test'], { stdio: ['ignore', 'pipe', 'pipe'] })
@@ -120,6 +122,29 @@ try {
   assert.equal(await refused, 401)
   bad.terminate()
   console.log('PASS Live ticket issue, authenticated WebSocket relay and forged-ticket refusal')
+  const staffIssue = await call('/live-tickets', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ userId: 'staff-1', channel: 'staff-orders' }) }, 'crms-key')
+  assert.equal(staffIssue.status, 200)
+  const staffPass = await staffIssue.json()
+  const staff = new WebSocket(base.replace('http:', 'ws:') + `/notifications/orders/staff/live?ticket=${staffPass.ticket}`)
+  sockets.add(staff)
+  const [staffIdentity] = await once(staff, 'message', { signal: AbortSignal.timeout(5000) })
+  assert.equal(JSON.parse(staffIdentity.toString()).path, '/orders/staff/live?userId=staff-1')
+  const wrongUser = new WebSocket(base.replace('http:', 'ws:') + `/notifications/orders/staff/live?ticket=${staffPass.ticket}&userId=staff-2`)
+  sockets.add(wrongUser)
+  wrongUser.on('error', () => {})
+  const [_, refusedIdentity] = await once(wrongUser, 'unexpected-response', { signal: AbortSignal.timeout(5000) })
+  refusedIdentity.resume()
+  assert.equal(refusedIdentity.statusCode, 401)
+  wrongUser.terminate()
+  for (const key of ['smoke-key', 'crms-key']) {
+    assert.equal((await call('/notifications/orders/changed', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' }, key)).status, 403)
+  }
+  const publish = await call('/notifications/orders/changed', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' }, 'shop-key')
+  assert.equal(publish.status, 200)
+  const publishForwarded = await publish.json()
+  assert.equal(publishForwarded.path, '/orders/changed')
+  assert.equal(publishForwarded.headers.authorization, 'Bearer notify-secret')
+  console.log('PASS Staff Orders WebSocket, wrong-User refusal and ECOM-only publish')
   for (let i = 0; i < 600; i++) {
     const res = await call(i % 2 ? '/missing' : '/other', {}, 'rate-key')
     assert.equal(res.status, 404, `allowed request ${i + 1}`)

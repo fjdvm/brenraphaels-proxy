@@ -42,3 +42,20 @@ claude mcp add --transport http gateway https://api-gateway.jude-nitram08.worker
 CI publishes to GHCR and deploys the gateway to Azure with min 1 / max 2 replicas after smoke tests pass. See the [Azure deployment guide](docs/deployment/azure.md) for secrets, probes, real-service verification and rollback. Production Callers keep their existing Cloudflare address until the separate cutover.
 
 The old Cloudflare deployment stays available for rollback. Its entrypoint is retained in `src/worker.ts`, with `wrangler.jsonc` pointing there; manual redeployment uses `npm run deploy:worker` and the existing Cloudflare credentials/secrets. CI no longer automatically redeploys that Worker. Keep it serving until the staged cutover is verified and the quiet week in Spec#138 has passed.
+
+### Staff Orders (Portal #174)
+
+CREOMS checks the signed-in User is Staff and asks `POST /live-tickets` for
+`{ "userId": "<signed-in User>", "channel": "staff-orders" }`, using its CRMS Caller key.
+Only `systemCode: CRMS` can issue that channel. The browser connects to
+`/notifications/orders/staff/live?ticket=PASS`. Tickets for Customer Orders,
+inboxes or Conversations cannot join, and a mismatched declared userId is refused.
+The gateway forwards only the verified User and the gateway secret to notifications.
+
+Ecommerce publishes JSON `{}` to `POST /notifications/orders/changed` after commit.
+Only `systemCode: ECOM` can publish; notifications rejects payload data. Each connected
+Staff Orders socket receives `{ "type": "orders.changed" }`. Offline signals are
+not stored or replayed. Refetch current Orders on connect and on the signal; log
+publish failures without failing an already committed change. Notifications sends
+protocol pings every 30 seconds and drops silent dead sockets within two intervals.
+Browsers answer automatically, without heartbeat timers or periodic data requests.
