@@ -118,7 +118,7 @@ export const STATIC_TOOLS: Tool[] = [
     'issue_live_ticket',
     'Issue a short-lived Live ticket for one user so their browser can open a live WebSocket (/notifications/live?ticket=...) without a Caller key. Add ticketId and role for a Ticket conversation, or channel: orders for /notifications/orders/live (ECOM Caller only).',
     { method: 'POST', path: '/live-tickets', pathParams: [], queryParams: [], headerParams: [], bodyKeys: ['userId', 'ticketId', 'role', 'channel'] },
-    { channel: str('orders requires ECOM; staff-orders requires CRMS. No Ticket or role.', { enum: ['orders', 'staff-orders'] }), userId: str('The user the ticket is for.'), ticketId: str('Ticket id, for a conversation.'), role: str('Customer or Staff, for a conversation.', { enum: ['Customer', 'Staff'] }) },
+    { channel: str('orders requires ECOM; staff-orders and staff-stock require CRMS. No Ticket or role.', { enum: ['orders', 'staff-orders', 'staff-stock'] }), userId: str('The user the ticket is for.'), ticketId: str('Ticket id, for a conversation.'), role: str('Customer or Staff, for a conversation.', { enum: ['Customer', 'Staff'] }) },
     ['userId'],
   ),
   tool(

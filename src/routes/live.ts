@@ -18,9 +18,9 @@ live.post('/live-tickets', async (c) => {
   const caller = c.get('caller')
   const app = caller.app ?? caller.name
   if (body.channel !== undefined) {
-    if (!['orders', 'staff-orders'].includes(body.channel) || body.ticketId !== undefined || body.role !== undefined)
+    if (!['orders', 'staff-orders', 'staff-stock'].includes(body.channel) || body.ticketId !== undefined || body.role !== undefined)
       return bad(c, 'Order channels cannot name a Ticket or role')
-    const requiredSystem = body.channel === 'staff-orders' ? 'CRMS' : 'ECOM'
+    const requiredSystem = body.channel === 'orders' ? 'ECOM' : 'CRMS'
     if (caller.systemCode !== requiredSystem) return c.json({ error: `${requiredSystem} Caller required` }, 403)
     return c.json(
       await issueLiveTicket(c.env.LIVE_TICKET_SECRET, { userId, app, channel: body.channel }),
@@ -38,7 +38,7 @@ live.post('/live-tickets', async (c) => {
 async function forwardLive(
   c: Parameters<typeof forward>[0],
   ticketId: string | undefined,
-  channel?: 'orders' | 'staff-orders',
+  channel?: 'orders' | 'staff-orders' | 'staff-stock',
 ) {
   const claims = await verifyLiveTicket(c.env.LIVE_TICKET_SECRET, c.req.query('ticket'))
   const declaredUser = c.req.query('userId')
@@ -71,6 +71,19 @@ live.get('/notifications/conversations/:ticketId/live', (c) =>
 
 live.get('/notifications/orders/live', (c) => forwardLive(c, undefined, 'orders'))
 live.get('/notifications/orders/staff/live', (c) => forwardLive(c, undefined, 'staff-orders'))
+live.get('/notifications/stock/staff/live', (c) => forwardLive(c, undefined, 'staff-stock'))
+
+// Only the IMS may publish a stock change; the general proxy must not reach this prefix.
+live.all('/notifications/stock/*', async (c) => {
+  if (c.get('caller').systemCode !== 'IMS') return c.json({ error: 'IMS Caller required' }, 403)
+  if (c.req.method !== 'POST' || c.req.path !== '/notifications/stock/changed')
+    return c.json({ error: 'not found' }, 404)
+  return forward(c, {
+    prefix: '/notifications',
+    baseUrl: c.env.NOTIFICATIONS_URL,
+    headers: { Authorization: `Bearer ${c.env.NOTIFICATIONS_TOKEN}` },
+  })
+})
 
 // Guard the whole prefix so the general notifications proxy cannot publish for other Callers.
 live.all('/notifications/orders/*', async (c) => {

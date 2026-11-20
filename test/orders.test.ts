@@ -14,6 +14,7 @@ async function harness() {
   const env = {
     CALLERS: JSON.stringify([
       { name: 'shop', keyHash: await hashKey('shop-key'), app: 'ecommerce', systemCode: 'ECOM' },
+      { name: 'ims', keyHash: await hashKey('ims-key'), app: 'ims', systemCode: 'IMS' },
       { name: 'crms', keyHash: await hashKey('crms-key'), app: 'crms', systemCode: 'CRMS' },
     ]),
     RATE_LIMITER: { limit: async () => ({ success: true }) },
@@ -149,4 +150,50 @@ it('allows only ECOM to publish the Staff Orders signal', async () => {
   expect((await h.post('/notifications/orders/changed', {})).status).toBe(200)
   expect(h.sent[0].url).toBe('https://notify.test/orders/changed')
   expect(h.sent[0].headers.get('authorization')).toBe('Bearer service-token')
+})
+
+it('issues Staff stock passes only for CRMS and joins only the stock channel', async () => {
+  const h = await harness()
+  const body = { userId: 'staff-1', channel: 'staff-stock' }
+  expect((await h.post('/live-tickets', body)).status).toBe(403)
+  expect((await h.post('/live-tickets', body, 'ims-key')).status).toBe(403)
+  const { ticket } = (await (await h.post('/live-tickets', body, 'crms-key')).json()) as {
+    ticket: string
+  }
+  const orders = (await (
+    await h.post('/live-tickets', { userId: 'staff-1', channel: 'staff-orders' }, 'crms-key')
+  ).json()) as { ticket: string }
+  for (const path of [
+    `/notifications/stock/staff/live?ticket=${ticket}&userId=staff-2`,
+    `/notifications/stock/staff/live?ticket=${orders.ticket}`,
+    `/notifications/orders/staff/live?ticket=${ticket}`,
+    `/notifications/live?ticket=${ticket}`,
+    '/notifications/stock/staff/live',
+  ])
+    expect((await h.request(path)).status, path).toBe(401)
+  expect(h.sent).toHaveLength(0)
+  expect((await h.request(`/notifications/stock/staff/live?ticket=${ticket}`)).status).toBe(200)
+  expect(h.sent[0].url).toBe('https://notify.test/stock/staff/live?userId=staff-1')
+  expect(h.sent[0].headers.get('x-gateway-secret')).toBe('gateway-secret')
+})
+
+it('allows only the IMS to publish a stock change', async () => {
+  const h = await harness()
+  const body = { sizeId: 'size-1' }
+  for (const key of ['shop-key', 'crms-key'])
+    expect((await h.post('/notifications/stock/changed', body, key)).status).toBe(403)
+  expect((await h.post('/notifications/stock/changed', body, 'unknown')).status).toBe(401)
+  expect((await h.post('/notifications/stock/other', body, 'ims-key')).status).toBe(404)
+  expect(h.sent).toHaveLength(0)
+  expect((await h.post('/notifications/stock/changed', body, 'ims-key')).status).toBe(200)
+  expect(h.sent[0].url).toBe('https://notify.test/stock/changed')
+  expect(h.sent[0].headers.get('authorization')).toBe('Bearer service-token')
+  expect(await h.sent[0].json()).toEqual(body)
+})
+
+it('keeps a Caller key mandatory on every stock path except the Staff live socket', async () => {
+  const h = await harness()
+  for (const path of ['/notifications/stock/live', '/notifications/stock/changed'])
+    expect((await h.request(path)).status, path).toBe(401)
+  expect(h.sent).toEqual([])
 })

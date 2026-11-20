@@ -43,6 +43,15 @@ CI publishes to GHCR and deploys the gateway to Azure with min 1 / max 2 replica
 
 The old Cloudflare deployment stays available for rollback. Its entrypoint is retained in `src/worker.ts`, with `wrangler.jsonc` pointing there; manual redeployment uses `npm run deploy:worker` and the existing Cloudflare credentials/secrets. CI no longer automatically redeploys that Worker. Keep it serving until the staged cutover is verified and the quiet week in Spec#138 has passed.
 
+### Staff stock (CREOMS #670)
+
+CREOMS asks `POST /live-tickets` for `{ "userId": "<signed-in User>", "channel": "staff-stock" }`
+with its CRMS Caller key (only `systemCode: CRMS`; CREOMS checks the Orders Module first).
+The browser connects to `/notifications/stock/staff/live?ticket=PASS`; other channels' tickets
+cannot join. The IMS publishes `{ "sizeId" }` to `POST /notifications/stock/changed`; only
+`systemCode: IMS` may, and everything else under `/notifications/stock/` is refused. Nothing is
+stored or replayed.
+
 ### Staff Orders (Portal #174)
 
 CREOMS checks the signed-in User is Staff and asks `POST /live-tickets` for
