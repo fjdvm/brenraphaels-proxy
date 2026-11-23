@@ -45,8 +45,9 @@ The old Cloudflare deployment stays available for rollback. Its entrypoint is re
 
 ### Staff stock (CREOMS #670)
 
-CREOMS asks `POST /live-tickets` for `{ "userId": "<signed-in User>", "channel": "staff-stock" }`
-with its CRMS Caller key (only `systemCode: CRMS`; CREOMS checks the Orders Module first).
+CREOMS and the IMS ask `POST /live-tickets` for `{ "userId": "<signed-in User>", "channel": "staff-stock" }`
+with their Caller key (only `systemCode: CRMS` or `IMS`; each checks the signed-in User first), so a
+stock change reaches both apps' screens at once.
 The browser connects to `/notifications/stock/staff/live?ticket=PASS`; other channels' tickets
 cannot join. The IMS publishes `{ "sizeId" }` to `POST /notifications/stock/changed`; only
 `systemCode: IMS` may, and everything else under `/notifications/stock/` is refused. Nothing is

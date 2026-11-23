@@ -20,8 +20,9 @@ live.post('/live-tickets', async (c) => {
   if (body.channel !== undefined) {
     if (!['orders', 'staff-orders', 'staff-stock'].includes(body.channel) || body.ticketId !== undefined || body.role !== undefined)
       return bad(c, 'Order channels cannot name a Ticket or role')
-    const requiredSystem = body.channel === 'orders' ? 'ECOM' : 'CRMS'
-    if (caller.systemCode !== requiredSystem) return c.json({ error: `${requiredSystem} Caller required` }, 403)
+    // Staff stock is shared by CREOMS and the IMS, so both see a stock change at once; the other channels have one owner.
+    const allowed = body.channel === 'orders' ? ['ECOM'] : body.channel === 'staff-stock' ? ['CRMS', 'IMS'] : ['CRMS']
+    if (!allowed.includes(caller.systemCode ?? '')) return c.json({ error: `${allowed.join(' or ')} Caller required` }, 403)
     return c.json(
       await issueLiveTicket(c.env.LIVE_TICKET_SECRET, { userId, app, channel: body.channel }),
     )
