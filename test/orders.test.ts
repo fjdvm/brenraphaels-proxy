@@ -152,11 +152,12 @@ it('allows only ECOM to publish the Staff Orders signal', async () => {
   expect(h.sent[0].headers.get('authorization')).toBe('Bearer service-token')
 })
 
-it('issues Staff stock passes only for CRMS and joins only the stock channel', async () => {
+it('issues Staff stock passes only for CRMS and the IMS and joins only the stock channel', async () => {
   const h = await harness()
   const body = { userId: 'staff-1', channel: 'staff-stock' }
   expect((await h.post('/live-tickets', body)).status).toBe(403)
-  expect((await h.post('/live-tickets', body, 'ims-key')).status).toBe(403)
+  expect((await h.post('/live-tickets', body, 'ims-key')).status).toBe(200)
+  expect((await h.post('/live-tickets', { userId: 'staff-1', channel: 'staff-orders' }, 'ims-key')).status).toBe(403)
   const { ticket } = (await (await h.post('/live-tickets', body, 'crms-key')).json()) as {
     ticket: string
   }
