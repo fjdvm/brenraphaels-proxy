@@ -45,7 +45,8 @@ export function startGateway(env: Env, port: number) {
         },
       })
       const path = new URL(request.url ?? '/', 'http://gateway').pathname
-      if (!/^\/notifications\/(live|orders\/(staff\/)?live|conversations\/[^/]+\/live)$/.test(path)) {
+      // Must list every WebSocket route in routes/live.ts; anything else is refused before the ticket check.
+      if (!/^\/notifications\/(live|orders\/(staff\/)?live|stock\/staff\/live|conversations\/[^/]+\/live)$/.test(path)) {
         socket.end('HTTP/1.1 404 Not Found\r\nConnection: close\r\n\r\n')
         return
       }
