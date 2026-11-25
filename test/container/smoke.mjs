@@ -135,6 +135,14 @@ try {
   refusedIdentity.resume()
   assert.equal(refusedIdentity.statusCode, 401)
   wrongUser.terminate()
+  const stockIssue = await call('/live-tickets', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ userId: 'staff-1', channel: 'staff-stock' }) }, 'crms-key')
+  assert.equal(stockIssue.status, 200)
+  const stockPass = await stockIssue.json()
+  const stock = new WebSocket(base.replace('http:', 'ws:') + `/notifications/stock/staff/live?ticket=${stockPass.ticket}`)
+  sockets.add(stock)
+  const [stockIdentity] = await once(stock, 'message', { signal: AbortSignal.timeout(5000) })
+  assert.equal(JSON.parse(stockIdentity.toString()).path, '/stock/staff/live?userId=staff-1')
+  stock.close()
   for (const key of ['smoke-key', 'crms-key']) {
     assert.equal((await call('/notifications/orders/changed', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' }, key)).status, 403)
   }
@@ -143,7 +151,7 @@ try {
   const publishForwarded = await publish.json()
   assert.equal(publishForwarded.path, '/orders/changed')
   assert.equal(publishForwarded.headers.authorization, 'Bearer notify-secret')
-  console.log('PASS Staff Orders WebSocket, wrong-User refusal and ECOM-only publish')
+  console.log('PASS Staff Orders and Staff stock WebSockets, wrong-User refusal and ECOM-only publish')
   const limitStarted = Date.now()
   for (let i = 0; i < 600; i++) {
     const res = await call(i % 2 ? '/missing' : '/other', {}, 'rate-key')
